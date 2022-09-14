@@ -40,10 +40,16 @@ class GarmentClassifier(nn.Module):
         return x
 
 
-def train_one_epoch(epoch_index, tb_writer, optimizer):
+def train_one_epoch(model,epoch_index, tb_writer, optimizer,loss_fn):
     running_loss = 0.
     last_loss = 0.
 
+    transform = transforms.Compose(
+        [transforms.ToTensor(),
+         transforms.Normalize((0.5,), (0.5,))])
+
+    training_set = torchvision.datasets.FashionMNIST('./data', train=True, transform=transform, download=True)
+    training_loader = torch.utils.data.DataLoader(training_set, batch_size=4, shuffle=True, num_workers=2)
     # Here, we use enumerate(training_loader) instead of
     # iter(training_loader) so that we can track the batch
     # index and do some intra-epoch reporting
@@ -74,7 +80,7 @@ def train_one_epoch(epoch_index, tb_writer, optimizer):
 def train(model, EPOCHS, optimizer):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     writer = SummaryWriter('runs/fashion_trainer_{}'.format(timestamp))
-
+    loss_fn = torch.nn.CrossEntropyLoss()
     EPOCHS = 5
 
     best_vloss = 1_000_000.
@@ -84,11 +90,15 @@ def train(model, EPOCHS, optimizer):
 
         # Make sure gradient tracking is on, and do a pass over the data
         model.train(True)
-        avg_loss = train_one_epoch(epoch_number, writer,optimizer)
+        avg_loss = train_one_epoch(model,epoch_number, writer,optimizer,loss_fn)
 
         # We don't need gradients on to do reporting
         model.train(False)
-
+        transform = transforms.Compose(
+            [transforms.ToTensor(),
+             transforms.Normalize((0.5,), (0.5,))])
+        validation_set = torchvision.datasets.FashionMNIST('./data', train=False, transform=transform, download=True)
+        validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=4, shuffle=False, num_workers=2)
         running_vloss = 0.0
         for i, vdata in enumerate(validation_loader):
             vinputs, vlabels = vdata
@@ -138,8 +148,6 @@ def main():
     # Create a grid from the images and show them
     img_grid = torchvision.utils.make_grid(images)
     matplotlib_imshow(img_grid, one_channel=True)
-
-    print('  '.join(classes[labels[j]] for j in range(4)))
     # Report split sizes
     print('Training set has {} instances'.format(len(training_set)))
     print('Validation set has {} instances'.format(len(validation_set)))
