@@ -9,16 +9,6 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 
-def matplotlib_imshow(img, one_channel=False):
-    if one_channel:
-        img = img.mean(dim=0)
-    img = img / 2 + 0.5  # unnormalize
-    npimg = img.numpy()
-    if one_channel:
-        plt.imshow(npimg, cmap="Greys")
-    else:
-        plt.imshow(np.transpose(npimg, (1, 2, 0)))
-
 # PyTorch models inherit from torch.nn.Module
 class GarmentClassifier(nn.Module):
     def __init__(self):
@@ -47,9 +37,10 @@ def train_one_epoch(model,epoch_index, tb_writer, optimizer,loss_fn):
     transform = transforms.Compose(
         [transforms.ToTensor(),
          transforms.Normalize((0.5,), (0.5,))])
-
-    training_set = torchvision.datasets.FashionMNIST('./data', train=True, transform=transform, download=True)
-    training_loader = torch.utils.data.DataLoader(training_set, batch_size=4, shuffle=True, num_workers=2)
+    batch_sizes = [128, 256]
+    for i in range(len(batch_sizes)):
+        training_set = torchvision.datasets.FashionMNIST('./data', train=True, transform=transform, download=True)
+        training_loader = torch.utils.data.DataLoader(training_set, batch_size=batch_sizes[i], shuffle=True, num_workers=2)
     # Here, we use enumerate(training_loader) instead of
     # iter(training_loader) so that we can track the batch
     # index and do some intra-epoch reporting
@@ -77,11 +68,11 @@ def train_one_epoch(model,epoch_index, tb_writer, optimizer,loss_fn):
     return last_loss
 
 
-def train(model, EPOCHS, optimizer):
+def train(model, EPOCHS, optimizer,lr):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    writer = SummaryWriter('runs/fashion_trainer_{}'.format(timestamp))
+    # tracking=f'{optimizer}_{EPOCHS}_{lr}'
+    writer = SummaryWriter(f'runs/fashion_trainer_{str(optimizer)}')
     loss_fn = torch.nn.CrossEntropyLoss()
-    EPOCHS = 5
 
     best_vloss = 1_000_000.
     epoch_number = 0
@@ -98,7 +89,7 @@ def train(model, EPOCHS, optimizer):
             [transforms.ToTensor(),
              transforms.Normalize((0.5,), (0.5,))])
         validation_set = torchvision.datasets.FashionMNIST('./data', train=False, transform=transform, download=True)
-        validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=4, shuffle=False, num_workers=2)
+        validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=1, shuffle=False, num_workers=2)
         running_vloss = 0.0
         for i, vdata in enumerate(validation_loader):
             vinputs, vlabels = vdata
@@ -124,37 +115,11 @@ def train(model, EPOCHS, optimizer):
 
         epoch_number += 1
 
-
 def main():
-    transform = transforms.Compose(
-        [transforms.ToTensor(),
-         transforms.Normalize((0.5,), (0.5,))])
-
-    # Create datasets for training & validation, download if necessary
-    training_set = torchvision.datasets.FashionMNIST('./data', train=True, transform=transform, download=True)
-    validation_set = torchvision.datasets.FashionMNIST('./data', train=False, transform=transform, download=True)
-
-    # Create data loaders for our datasets; shuffle for training, not for validation
-    training_loader = torch.utils.data.DataLoader(training_set, batch_size=4, shuffle=True, num_workers=2)
-    validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=4, shuffle=False, num_workers=2)
-
-    # Class labels
-    classes = ('T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
-               'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle Boot')
-
-    dataiter = iter(training_loader)
-    images, labels = dataiter.next()
-
-    # Create a grid from the images and show them
-    img_grid = torchvision.utils.make_grid(images)
-    matplotlib_imshow(img_grid, one_channel=True)
-    # Report split sizes
-    print('Training set has {} instances'.format(len(training_set)))
-    print('Validation set has {} instances'.format(len(validation_set)))
-
     model = GarmentClassifier()
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-    train(model,10, optimizer)
+    lr=0.001
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    train(model, 10, optimizer,lr)
 
 if __name__=="__main__":
     main()
