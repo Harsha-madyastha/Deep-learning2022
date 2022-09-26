@@ -68,10 +68,10 @@ def train_one_epoch(model,epoch_index, tb_writer, optimizer,loss_fn):
     return last_loss
 
 
-def train(model, EPOCHS, optimizer,lr):
+def train(model, EPOCHS, optimizer,name, lr):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     # tracking=f'{optimizer}_{EPOCHS}_{lr}'
-    writer = SummaryWriter(f'runs/fashion_trainer_{str(optimizer)}')
+    writer = SummaryWriter(f"runs/fashion_trainer_{name}")
     loss_fn = torch.nn.CrossEntropyLoss()
 
     best_vloss = 1_000_000.
@@ -118,8 +118,13 @@ def train(model, EPOCHS, optimizer,lr):
 def main():
     model = GarmentClassifier()
     lr=0.001
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    train(model, 10, optimizer,lr)
+    optimize = "ADAM"
+    if optimize == "ADAM":
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    else:
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+        
+    train(model, 10, optimizer, optimize, lr)
 
 if __name__=="__main__":
     main()
