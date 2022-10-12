@@ -30,17 +30,16 @@ class GarmentClassifier(nn.Module):
         return x
 
 
-def train_one_epoch(model,epoch_index, tb_writer, optimizer,loss_fn):
+def train_one_epoch(model,epoch_index, tb_writer, optimizer,loss_fn, batch_size):
     running_loss = 0.
     last_loss = 0.
 
     transform = transforms.Compose(
         [transforms.ToTensor(),
          transforms.Normalize((0.5,), (0.5,))])
-    batch_sizes = [128, 256]
-    for i in range(len(batch_sizes)):
-        training_set = torchvision.datasets.FashionMNIST('./data', train=True, transform=transform, download=True)
-        training_loader = torch.utils.data.DataLoader(training_set, batch_size=batch_sizes[i], shuffle=True, num_workers=2)
+    #for i in range(len(batch_sizes)):
+    training_set = torchvision.datasets.FashionMNIST('./data', train=True, transform=transform, download=True)
+    training_loader = torch.utils.data.DataLoader(training_set, batch_size=batch_size, shuffle=True, num_workers=2)
     # Here, we use enumerate(training_loader) instead of
     # iter(training_loader) so that we can track the batch
     # index and do some intra-epoch reporting
@@ -57,21 +56,20 @@ def train_one_epoch(model,epoch_index, tb_writer, optimizer,loss_fn):
         # Adjust learning weights
         optimizer.step()
         # Gather data and report
-        running_loss += loss.item()
-        if i % 1000 == 999:
-            last_loss = running_loss / 1000  # loss per batch
-            print('  batch {} loss: {}'.format(i + 1, last_loss))
-            tb_x = epoch_index * len(training_loader) + i + 1
-            tb_writer.add_scalar('Loss/train', last_loss, tb_x)
-            running_loss = 0.
+        running_loss = loss.item()
+        #if i % batch_size == 999:
+        last_loss = running_loss / batch_size # loss per batch
+        print('  batch {} loss: {}'.format(i + 1, last_loss))
+        tb_x = epoch_index * len(training_loader) + i + 1
+        tb_writer.add_scalar('Loss/train', last_loss, tb_x)
 
     return last_loss
 
 
-def train(model, EPOCHS, optimizer,lr):
+def train(model, EPOCHS, optimizer,name, lr, batch_size):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     # tracking=f'{optimizer}_{EPOCHS}_{lr}'
-    writer = SummaryWriter(f'runs/fashion_trainer_{str(optimizer)}')
+    writer = SummaryWriter(f"runs/fashion_trainer_{name}_{lr}")
     loss_fn = torch.nn.CrossEntropyLoss()
 
     best_vloss = 1_000_000.
@@ -81,7 +79,7 @@ def train(model, EPOCHS, optimizer,lr):
 
         # Make sure gradient tracking is on, and do a pass over the data
         model.train(True)
-        avg_loss = train_one_epoch(model,epoch_number, writer,optimizer,loss_fn)
+        avg_loss = train_one_epoch(model,epoch_number, writer,optimizer,loss_fn, batch_size)
 
         # We don't need gradients on to do reporting
         model.train(False)
@@ -118,8 +116,14 @@ def train(model, EPOCHS, optimizer,lr):
 def main():
     model = GarmentClassifier()
     lr=0.001
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    train(model, 10, optimizer,lr)
+    batch_sizes = 128
+    optimize = "ADAM"
+    if optimize == "ADAM":
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    else:
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+        
+    train(model, 10, optimizer, optimize, lr, batch_size)
 
 if __name__=="__main__":
     main()
